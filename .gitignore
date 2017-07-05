@@ -12,3 +12,4 @@ pyasn1.egg-info/
 
 # PyCharm
 .idea/
+*.egg-info

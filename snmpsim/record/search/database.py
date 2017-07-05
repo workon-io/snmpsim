@@ -25,9 +25,9 @@ class RecordIndex:
             self.__dbFile = textFile
 
         self.__dbFile = self.__dbFile + os.path.extsep + 'dbm'
-   
+
         self.__dbFile = os.path.join(confdir.cache, os.path.splitdrive(self.__dbFile)[1].replace(os.path.sep, '_'))
-         
+
         self.__db = self.__text = None
         self.__dbType = '?'
 
@@ -55,9 +55,9 @@ class RecordIndex:
         textFileTime = os.stat(self.__textFile)[8]
 
         # gdbm on OS X seems to voluntarily append .db, trying to catch that
-        
+
         indexNeeded = forceIndexBuild
-        
+
         for dbFile in (
             self.__dbFile + os.path.extsep + 'db',
             self.__dbFile
@@ -76,10 +76,10 @@ class RecordIndex:
         else:
             indexNeeded = True
             log.msg('Index %s does not exist for data file %s' % (self.__dbFile, self.__textFile))
-            
+
         if indexNeeded:
             # these might speed-up indexing
-            open_flags = 'nfu' 
+            open_flags = 'nfu'
             while open_flags:
                 try:
                     db = dbm.open(self.__dbFile, open_flags)
@@ -98,7 +98,7 @@ class RecordIndex:
 
             log.msg('Building index %s for data file %s (open flags \"%s\")...' % (self.__dbFile, self.__textFile, open_flags))
             sys.stdout.flush()
-        
+
             lineNo = 0
             offset = 0
             prevOffset = -1
@@ -109,7 +109,7 @@ class RecordIndex:
                     # reference to last OID in data file
                     db['last'] = '%d,%d,%d' % (offset, 0, prevOffset)
                     break
-             
+
                 try:
                     oid, tag, val = self.__textParser.grammar.parse(line)
                 except Exception:
@@ -121,40 +121,41 @@ class RecordIndex:
                         pass
                     raise error.SnmpsimError('Data error at %s:%d: %s' % (self.__textFile, lineNo, exc))
 
-                if validateData:
-                    try:
-                        self.__textParser.evaluateOid(oid)
-                    except Exception:
-                        db.close()
-                        exc = sys.exc_info()[1]
+                if oid and tag:
+                    if  validateData:
                         try:
-                            os.remove(self.__dbFile)
-                        except OSError:
-                            pass
-                        raise error.SnmpsimError('OID error at %s:%d: %s' % (self.__textFile, lineNo, exc))
-                    try:
-                        self.__textParser.evaluateValue(
-                            oid, tag, val, dataValidation=True
-                        )
-                    except Exception:
-                        log.msg(
-                            'ERROR at line %s, value %r: %s' % \
-                            (lineNo, val, sys.exc_info()[1])
-                        )
+                            self.__textParser.evaluateOid(oid)
+                        except Exception:
+                            db.close()
+                            exc = sys.exc_info()[1]
+                            try:
+                                os.remove(self.__dbFile)
+                            except OSError:
+                                pass
+                            raise error.SnmpsimError('OID error at %s:%d: %s' % (self.__textFile, lineNo, exc))
+                        try:
+                            self.__textParser.evaluateValue(
+                                oid, tag, val, dataValidation=True
+                            )
+                        except Exception:
+                            log.msg(
+                                'ERROR at line %s, value %r: %s' % \
+                                (lineNo, val, sys.exc_info()[1])
+                            )
 
-                # for lines serving subtrees, type is empty in tag field
-                db[oid] = '%d,%d,%d' % (offset, tag[0] == ':', prevOffset)
+                    # for lines serving subtrees, type is empty in tag field
+                    db[oid] = '%d,%d,%d' % (offset, tag[0] == ':', prevOffset)
 
-                if tag[0] == ':':
-                    prevOffset = offset
-                else:
-                    prevOffset = -1   # not a subtree - no backreference
+                    if tag[0] == ':':
+                        prevOffset = offset
+                    else:
+                        prevOffset = -1   # not a subtree - no backreference
 
-                offset += len(line)
+                    offset += len(line)
 
             text.close()
             db.close()
-       
+
             log.msg('...%d entries indexed' % lineNo)
 
         self.__textFileTime = os.stat(self.__textFile)[8]
